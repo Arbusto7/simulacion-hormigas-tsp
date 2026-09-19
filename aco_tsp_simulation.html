@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ant Colony Optimization (ACO) - TSP Simulator</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js for Live Graphing -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .code-font {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Custom scrollbar for control panels */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(51, 65, 85, 0.8);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(71, 85, 105, 1);
+        }
+
+        /* Canvas container responsiveness */
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            min-height: 380px;
+        }
+
+        canvas {
+            display: block;
+            touch-action: none; /* Allows touch dragging on canvas without scrolling page */
+        }
+
+        /* Glassmorphism utility */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        /* Animated pulse accent */
+        .ant-glow {
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.3);
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between overflow-x-hidden selection:bg-amber-500 selection:text-slate-950">
+
+    <!-- Header -->
+    <header class="bg-slate-900/90 border-b border-slate-800 px-4 py-3 sticky top-0 z-30 backdrop-blur-md">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-slate-950 shadow-lg shadow-amber-500/20 font-bold text-xl">
+                    <i class="fa-solid fa-bug"></i>
+                </div>
+                <div>
+                    <h1 class="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
+                        Ant Colony Optimization
+                        <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 hidden sm:inline-block">TSP Solver</span>
+                    </h1>
+                    <p class="text-xs text-slate-400 hidden sm:block">Interactive Bio-inspired Metaheuristic Simulation</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <button id="btnInfoModal" class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors border border-slate-700 flex items-center gap-1.5">
+                    <i class="fa-solid fa-circle-info text-amber-400"></i>
+                    <span>Poster Info</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <main class="max-w-7xl w-full mx-auto p-2 sm:p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-4 flex-grow">
+        
+        <!-- Left/Top: Canvas Simulation Container (7 cols on LG) -->
+        <section class="lg:col-span-7 flex flex-col gap-3">
+            <div class="glass-panel rounded-2xl p-3 sm:p-4 flex flex-col flex-grow relative overflow-hidden shadow-2xl">
+                <!-- Canvas Top Bar Status -->
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-3 px-1">
+                    <div class="flex items-center gap-2">
+                        <span id="statusBadge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                            Ready
+                        </span>
+                        <span class="text-xs text-slate-400 hidden sm:inline"><i class="fa-solid fa-hand-pointer text-slate-500 mr-1"></i>Tap canvas to add/drag cities</span>
+                    </div>
+
+                    <div class="flex items-center gap-1 bg-slate-900/80 rounded-lg p-1 border border-slate-800">
+                        <button id="btnTogglePheromones" class="px-2 py-1 text-xs rounded font-medium text-amber-400 bg-slate-800 hover:bg-slate-700 transition" title="Toggle Pheromones Layer">
+                            <i class="fa-solid fa-wind mr-1"></i> Trails
+                        </button>
+                        <button id="btnToggleBestPath" class="px-2 py-1 text-xs rounded font-medium text-emerald-400 bg-slate-800 hover:bg-slate-700 transition" title="Toggle Best Path Layer">
+                            <i class="fa-solid fa-route mr-1"></i> Best
+                        </button>
+                        <button id="btnToggleAnts" class="px-2 py-1 text-xs rounded font-medium text-orange-400 bg-slate-800 hover:bg-slate-700 transition" title="Toggle Ants Layer">
+                            <i class="fa-solid fa-bugs mr-1"></i> Ants
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Simulation Canvas Wrapper -->
+                <div id="canvasWrapper" class="canvas-container bg-slate-900/90 rounded-xl border border-slate-800/80 overflow-hidden flex-grow flex items-center justify-center cursor-crosshair">
+                    <canvas id="simCanvas"></canvas>
+                </div>
+
+                <!-- Live Metrics Summary Bar below Canvas -->
+                <div class="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-800/80 text-center">
+                    <div class="bg-slate-900/60 p-2 rounded-xl border border-slate-800">
+                        <p class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Iteration</p>
+                        <p id="metricIteration" class="text-base sm:text-xl font-bold code-font text-amber-400">0</p>
+                    </div>
+                    <div class="bg-slate-900/60 p-2 rounded-xl border border-slate-800">
+                        <p class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Best Distance</p>
+                        <p id="metricBestDist" class="text-base sm:text-xl font-bold code-font text-emerald-400">0.00</p>
+                    </div>
+                    <div class="bg-slate-900/60 p-2 rounded-xl border border-slate-800">
+                        <p class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Active Ants</p>
+                        <p id="metricAntCount" class="text-base sm:text-xl font-bold code-font text-orange-400">0</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right/Bottom: Controls & Analytics (5 cols on LG) -->
+        <section class="lg:col-span-5 flex flex-col gap-4">
+            
+            <!-- Controls Card -->
+            <div class="glass-panel rounded-2xl p-4 sm:p-5 flex flex-col gap-4 shadow-xl">
+                <!-- Action Buttons Row -->
+                <div class="grid grid-cols-4 gap-2">
+                    <button id="btnPlayPause" class="col-span-2 py-2.5 px-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-bold rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2 text-sm sm:text-base">
+                        <i id="iconPlayPause" class="fa-solid fa-play"></i>
+                        <span id="labelPlayPause">Start ACO</span>
+                    </button>
+                    <button id="btnStep" class="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl border border-slate-700 transition flex items-center justify-center gap-1.5 text-xs sm:text-sm" title="Step 1 Iteration">
+                        <i class="fa-solid fa-forward-step"></i>
+                        <span>Step</span>
+                    </button>
+                    <button id="btnReset" class="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl border border-slate-700 transition flex items-center justify-center gap-1.5 text-xs sm:text-sm" title="Reset Pheromones">
+                        <i class="fa-solid fa-rotate-left"></i>
+                        <span>Reset</span>
+                    </button>
+                </div>
+
+                <div class="flex gap-2">
+                    <button id="btnRandomizeCities" class="w-full py-2 px-3 bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 font-medium rounded-xl border border-slate-700/80 transition flex items-center justify-center gap-2 text-xs">
+                        <i class="fa-solid fa-shuffle text-amber-400"></i>
+                        <span>Randomize Cities</span>
+                    </button>
+                    <button id="btnClearCities" class="py-2 px-3 bg-slate-800/80 hover:bg-rose-900/30 text-slate-400 hover:text-rose-300 font-medium rounded-xl border border-slate-700/80 hover:border-rose-800/50 transition flex items-center justify-center gap-1.5 text-xs">
+                        <i class="fa-solid fa-trash-can"></i>
+                        <span>Clear</span>
+                    </button>
+                </div>
+
+                <hr class="border-slate-800/80">
+
+                <!-- Parameters Sliders Grid -->
+                <div class="space-y-3.5">
+                    <!-- Cities Count Slider -->
+                    <div class="space-y-1">
+                        <div class="flex justify-between items-center text-xs">
+                            <label for="sliderCities" class="font-medium text-slate-300 flex items-center gap-1.5">
+                                <i class="fa-solid fa-location-dot text-rose-400"></i> Number of Cities
+                            </label>
+                            <span id="valCities" class="code-font font-bold text-amber-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">20</span>
+                        </div>
+                        <input type="range" id="sliderCities" min="4" max="60" step="1" value="20" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500">
+                    </div>
+
+                    <!-- Ants Count Slider -->
+                    <div class="space-y-1">
+                        <div class="flex justify-between items-center text-xs">
+                            <label for="sliderAnts" class="font-medium text-slate-300 flex items-center gap-1.5">
+                                <i class="fa-solid fa-bugs text-orange-400"></i> Number of Ants
+                            </label>
+                            <span id="valAnts" class="code-font font-bold text-amber-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">25</span>
+                        </div>
+                        <input type="range" id="sliderAnts" min="2" max="100" step="1" value="25" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500">
+                    </div>
+
+                    <!-- Alpha (Pheromone Weight) Slider -->
+                    <div class="space-y-1">
+                        <div class="flex justify-between items-center text-xs">
+                            <label for="sliderAlpha" class="font-medium text-slate-300 flex items-center gap-1.5">
+                                <span class="font-serif italic font-bold text-amber-400">α</span> Alpha (Pheromone Weight)
+                            </label>
+                            <span id="valAlpha" class="code-font font-bold text-amber-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">1.0</span>
+                        </div>
+                        <input type="range" id="sliderAlpha" min="0.0" max="5.0" step="0.1" value="1.0" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500">
+                    </div>
+
+                    <!-- Beta (Heuristic Weight) Slider -->
+                    <div class="space-y-1">
+                        <div class="flex justify-between items-center text-xs">
+                            <label for="sliderBeta" class="font-medium text-slate-300 flex items-center gap-1.5">
+                                <span class="font-serif italic font-bold text-sky-400">β</span> Beta (Distance Weight)
+                            </label>
+                            <span id="valBeta" class="code-font font-bold text-sky-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">3.0</span>
+                        </div>
+                        <input type="range" id="sliderBeta" min="0.0" max="10.0" step="0.2" value="3.0" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500">
+                    </div>
+
+                    <!-- Evaporation Rate (Rho) Slider -->
+                    <div class="space-y-1">
+                        <div class="flex justify-between items-center text-xs">
+                            <label for="sliderRho" class="font-medium text-slate-300 flex items-center gap-1.5">
+                                <span class="font-serif italic font-bold text-emerald-400">ρ</span> Evaporation Rate
+                            </label>
+                            <span id="valRho" class="code-font font-bold text-emerald-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">0.30</span>
+                        </div>
+                        <input type="range" id="sliderRho" min="0.01" max="0.95" step="0.01" value="0.30" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500">
+                    </div>
+
+                    <!-- Simulation Speed Slider -->
+                    <div class="space-y-1">
+                        <div class="flex justify-between items-center text-xs">
+                            <label for="sliderSpeed" class="font-medium text-slate-300 flex items-center gap-1.5">
+                                <i class="fa-solid fa-gauge-high text-indigo-400"></i> Animation Speed
+                            </label>
+                            <span id="valSpeed" class="code-font font-bold text-indigo-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">5x</span>
+                        </div>
+                        <input type="range" id="sliderSpeed" min="1" max="20" step="1" value="5" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Convergence Chart Container -->
+            <div class="glass-panel rounded-2xl p-4 flex flex-col h-48 sm:h-52 shadow-xl">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                        <i class="fa-solid fa-chart-line text-emerald-400"></i> Convergence Progress
+                    </h3>
+                    <span class="text-[10px] text-slate-500">Distance vs Iteration</span>
+                </div>
+                <div class="flex-grow relative w-full h-full">
+                    <canvas id="convergenceChart"></canvas>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- Info / Poster Context Modal -->
+    <div id="infoModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-panel rounded-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto p-5 sm:p-6 shadow-2xl border border-slate-700 space-y-4">
+            <div class="flex justify-between items-start border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2.5">
+                    <i class="fa-solid fa-bug text-amber-400 text-xl"></i>
+                    <h3 class="text-lg font-bold text-white">Ant Colony Optimization (ACO)</h3>
+                </div>
+                <button id="btnCloseModal" class="text-slate-400 hover:text-white p-1 rounded-lg">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="text-xs text-slate-300 space-y-3 leading-relaxed">
+                <p>
+                    <strong>Ant Colony Optimization</strong> is a probabilistic swarm intelligence technique proposed by Marco Dorigo in 1992. It is inspired by the foraging behavior of real ants finding optimal paths through pheromone deposition.
+                </p>
+
+                <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800 space-y-1.5">
+                    <p class="font-semibold text-amber-400 flex items-center gap-1">
+                        <i class="fa-solid fa-calculator"></i> Transition Probability Formula:
+                    </p>
+                    <p class="code-font text-[11px] text-slate-300 bg-slate-950 p-2 rounded border border-slate-800/80 overflow-x-auto text-center">
+                        P(i → j) = [τ_ij]^α * [η_ij]^β / ∑ ([τ_ik]^α * [η_ik]^β)
+                    </p>
+                    <ul class="list-disc pl-4 space-y-0.5 text-[11px] text-slate-400">
+                        <li><strong class="text-slate-200">τ_ij:</strong> Pheromone level on edge (i, j). Controlled by <strong class="text-amber-400">Alpha (α)</strong>.</li>
+                        <li><strong class="text-slate-200">η_ij:</strong> Heuristic value (inverse distance 1/d_ij). Controlled by <strong class="text-sky-400">Beta (β)</strong>.</li>
+                        <li><strong class="text-slate-200">Evaporation (ρ):</strong> Prevents premature convergence by reducing pheromones over time.</li>
+                    </ul>
+                </div>
+
+                <div class="space-y-1">
+                    <h4 class="font-semibold text-white">How to experiment:</h4>
+                    <ol class="list-decimal pl-4 space-y-1 text-slate-400">
+                        <li>Set <strong class="text-amber-400">Alpha = 0</strong> to see purely greedy shortest-path exploration.</li>
+                        <li>Set <strong class="text-sky-400">Beta = 0</strong> to observe movement guided purely by existing pheromone trails.</li>
+                        <li>Adjust <strong class="text-emerald-400">Evaporation (ρ)</strong>: High evaporation forces quick forgetting; low evaporation retains old routes.</li>
+                        <li>Tap or click on the canvas to manually add custom city coordinates.</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="pt-2 border-t border-slate-800 flex justify-end">
+                <button id="btnCloseModal2" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl transition">
+                    Got it! Start Exploring
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Logic Javascript -->
+    <script>
+        // --- Core Simulation State ---
+        const state = {
+            numCities: 20,
+            numAnts: 25,
+            alpha: 1.0,      // Pheromone importance
+            beta: 3.0,       // Distance importance (heuristic)
+            rho: 0.30,       // Evaporation rate
+            speed: 5,        // Steps per frame
+
+            cities: [],      // [{x, y, id}]
+            distances: [],   // Matrix of Euclidean distances
+            pheromones: [],  // Matrix of pheromone values
+
+            bestPath: [],
+            bestDistance: Infinity,
+            iteration: 0,
+            isRunning: false,
+
+            // Animation layer toggles
+            showPheromones: true,
+            showBestPath: true,
+            showAnts: true,
+
+            // Animated Ant visual state
+            activeAnts: [],  // [{currentCity, path, visited, targetIndex, x, y, progress}]
+
+            // UI Drag State
+            draggedCityIndex: -1
+        };
+
+        // DOM Elements
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const canvasWrapper = document.getElementById('canvasWrapper');
+
+        // Buttons
+        const btnPlayPause = document.getElementById('btnPlayPause');
+        const iconPlayPause = document.getElementById('iconPlayPause');
+        const labelPlayPause = document.getElementById('labelPlayPause');
+        const btnStep = document.getElementById('btnStep');
+        const btnReset = document.getElementById('btnReset');
+        const btnRandomizeCities = document.getElementById('btnRandomizeCities');
+        const btnClearCities = document.getElementById('btnClearCities');
+        const statusBadge = document.getElementById('statusBadge');
+
+        // Toggle Buttons
+        const btnTogglePheromones = document.getElementById('btnTogglePheromones');
+        const btnToggleBestPath = document.getElementById('btnToggleBestPath');
+        const btnToggleAnts = document.getElementById('btnToggleAnts');
+
+        // Sliders & Values
+        const sliderCities = document.getElementById('sliderCities');
+        const valCities = document.getElementById('valCities');
+        const sliderAnts = document.getElementById('sliderAnts');
+        const valAnts = document.getElementById('valAnts');
+        const sliderAlpha = document.getElementById('sliderAlpha');
+        const valAlpha = document.getElementById('valAlpha');
+        const sliderBeta = document.getElementById('sliderBeta');
+        const valBeta = document.getElementById('valBeta');
+        const sliderRho = document.getElementById('sliderRho');
+        valueRho = document.getElementById('valRho');
+        const sliderSpeed = document.getElementById('sliderSpeed');
+        const valSpeed = document.getElementById('valSpeed');
+
+        // Metrics Display
+        const metricIteration = document.getElementById('metricIteration');
+        const metricBestDist = document.getElementById('metricBestDist');
+        const metricAntCount = document.getElementById('metricAntCount');
+
+        // Modal
+        const infoModal = document.getElementById('infoModal');
+        const btnInfoModal = document.getElementById('btnInfoModal');
+        const btnCloseModal = document.getElementById('btnCloseModal');
+        const btnCloseModal2 = document.getElementById('btnCloseModal2');
+
+        // Chart.js Instance
+        let convergenceChart;
+
+        function initChart() {
+            const chartCtx = document.getElementById('convergenceChart').getContext('2d');
+            convergenceChart = new Chart(chartCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Best Tour Distance',
+                        data: [],
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                        fill: true,
+                        tension: 0.2,
+                        pointRadius: 0,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#64748b', font: { size: 10 } }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#64748b', font: { size: 10 } }
+                        }
+                    }
+                }
+            });
+        }
+
+        function resizeCanvas() {
+            const rect = canvasWrapper.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            drawSimulation();
+        }
+
+        function generateRandomCities(count) {
+            state.cities = [];
+            const padding = 40;
+            const width = canvas.width || 600;
+            const height = canvas.height || 400;
+
+            for (let i = 0; i < count; i++) {
+                state.cities.push({
+                    x: padding + Math.random() * (width - padding * 2),
+                    y: padding + Math.random() * (height - padding * 2),
+                    id: i
+                });
+            }
+            initPheromonesAndDistances();
+        }
+
+        function initPheromonesAndDistances() {
+            const N = state.cities.length;
+            state.distances = Array.from({ length: N }, () => new Array(N).fill(0));
+            state.pheromones = Array.from({ length: N }, () => new Array(N).fill(1.0)); // Initial tau_0 = 1.0
+
+            for (let i = 0; i < N; i++) {
+                for (let j = 0; j < N; j++) {
+                    if (i !== j) {
+                        const dx = state.cities[i].x - state.cities[j].x;
+                        const dy = state.cities[i].y - state.cities[j].y;
+                        state.distances[i][j] = Math.sqrt(dx * dx + dy * dy);
+                    }
+                }
+            }
+
+            state.bestPath = [];
+            state.bestDistance = Infinity;
+            state.iteration = 0;
+            state.activeAnts = [];
+
+            if (convergenceChart) {
+                convergenceChart.data.labels = [];
+                convergenceChart.data.datasets[0].data = [];
+                convergenceChart.update();
+            }
+
+            updateMetricsUI();
+        }
+
+        // Distance of a complete tour
+        function calculatePathDistance(path) {
+            let dist = 0;
+            for (let i = 0; i < path.length; i++) {
+                const u = path[i];
+                const v = path[(i + 1) % path.length];
+                dist += state.distances[u][v];
+            }
+            return dist;
+        }
+
+        function runACOIteration() {
+            if (state.cities.length < 3) return;
+
+            const N = state.cities.length;
+            const antPaths = [];
+            const antDistances = [];
+
+            // 1. Construct tours for all ants
+            for (let a = 0; a < state.numAnts; a++) {
+                const path = [];
+                const visited = new Array(N).fill(false);
+
+                // Start ant at random city
+                let current = Math.floor(Math.random() * N);
+                path.push(current);
+                visited[current] = true;
+
+                // Select next cities step-by-step
+                for (let step = 1; step < N; step++) {
+                    const next = selectNextCity(current, visited);
+                    path.push(next);
+                    visited[next] = true;
+                    current = next;
+                }
+
+                const dist = calculatePathDistance(path);
+                antPaths.push(path);
+                antDistances.push(dist);
+
+                // Track global best tour
+                if (dist < state.bestDistance) {
+                    state.bestDistance = dist;
+                    state.bestPath = [...path];
+                }
+            }
+
+            // 2. Pheromone Evaporation: tau_ij = (1 - rho) * tau_ij
+            for (let i = 0; i < N; i++) {
+                for (let j = 0; j < N; j++) {
+                    state.pheromones[i][j] *= (1.0 - state.rho);
+                    if (state.pheromones[i][j] < 0.001) {
+                        state.pheromones[i][j] = 0.001; // Avoid divide by zero
+                    }
+                }
+            }
+
+            // 3. Pheromone Deposit: delta_tau = Q / L_k
+            for (let a = 0; a < state.numAnts; a++) {
+                const path = antPaths[a];
+                const dist = antDistances[a];
+                const depositAmount = 100.0 / dist; // Q / distance
+
+                for (let i = 0; i < N; i++) {
+                    const u = path[i];
+                    const v = path[(i + 1) % N];
+                    state.pheromones[u][v] += depositAmount;
+                    state.pheromones[v][u] += depositAmount; // Symmetric TSP
+                }
+            }
+
+            // Prepare visualization ants based on the last iteration's tours
+            setupAntsForAnimation(antPaths);
+
+            state.iteration++;
+
+            // Update Chart
+            if (convergenceChart) {
+                convergenceChart.data.labels.push(state.iteration);
+                convergenceChart.data.datasets[0].data.push(state.bestDistance);
+                if (convergenceChart.data.labels.length > 50) {
+                    convergenceChart.data.labels.shift();
+                    convergenceChart.data.datasets[0].data.shift();
+                }
+                convergenceChart.update('none');
+            }
+
+            updateMetricsUI();
+        }
+
+        // Action choice using state.alpha (Pheromones) and state.beta (Heuristic)
+        function selectNextCity(current, visited) {
+            const N = state.cities.length;
+            const probabilities = new Array(N).fill(0);
+            let totalWeight = 0;
+
+            for (let next = 0; next < N; next++) {
+                if (!visited[next]) {
+                    const tau = Math.pow(state.pheromones[current][next], state.alpha);
+                    const eta = Math.pow(1.0 / state.distances[current][next], state.beta);
+                    const weight = tau * eta;
+                    probabilities[next] = weight;
+                    totalWeight += weight;
+                }
+            }
+
+            // Fallback for uniform choice if zero weight
+            if (totalWeight === 0 || !isFinite(totalWeight)) {
+                const unvisited = [];
+                for (let i = 0; i < N; i++) if (!visited[i]) unvisited.push(i);
+                return unvisited[Math.floor(Math.random() * unvisited.length)];
+            }
+
+            // Roulette wheel selection
+            const rand = Math.random() * totalWeight;
+            let cumulative = 0;
+            for (let next = 0; next < N; next++) {
+                if (!visited[next]) {
+                    cumulative += probabilities[next];
+                    if (cumulative >= rand) {
+                        return next;
+                    }
+                }
+            }
+
+            // Default fallback
+            for (let i = 0; i < N; i++) if (!visited[i]) return i;
+            return 0;
+        }
+
+        function setupAntsForAnimation(antPaths) {
+            state.activeAnts = antPaths.slice(0, Math.min(antPaths.length, 30)).map(path => {
+                const startCity = state.cities[path[0]];
+                return {
+                    path: path,
+                    segmentIndex: 0,
+                    progress: Math.random(), // Stagger start positions
+                    x: startCity.x,
+                    y: startCity.y
+                };
+            });
+        }
+
+        function updateAntPositions() {
+            if (state.activeAnts.length === 0 || state.cities.length === 0) return;
+
+            const speedFactor = 0.02 * (state.speed / 5);
+
+            state.activeAnts.forEach(ant => {
+                ant.progress += speedFactor;
+                if (ant.progress >= 1.0) {
+                    ant.progress = 0;
+                    ant.segmentIndex = (ant.segmentIndex + 1) % ant.path.length;
+                }
+
+                const uIdx = ant.path[ant.segmentIndex];
+                const vIdx = ant.path[(ant.segmentIndex + 1) % ant.path.length];
+
+                const c1 = state.cities[uIdx];
+                const c2 = state.cities[vIdx];
+
+                if (c1 && c2) {
+                    ant.x = c1.x + (c2.x - c1.x) * ant.progress;
+                    ant.y = c1.y + (c2.y - c1.y) * ant.progress;
+                }
+            });
+        }
+
+        function drawSimulation() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const N = state.cities.length;
+            if (N === 0) return;
+
+            // 1. Draw Pheromone Edge Trails
+            if (state.showPheromones && state.pheromones.length === N) {
+                let maxPheromone = 0.0001;
+                for (let i = 0; i < N; i++) {
+                    for (let j = i + 1; j < N; j++) {
+                        if (state.pheromones[i][j] > maxPheromone) {
+                            maxPheromone = state.pheromones[i][j];
+                        }
+                    }
+                }
+
+                for (let i = 0; i < N; i++) {
+                    for (let j = i + 1; j < N; j++) {
+                        const intensity = state.pheromones[i][j] / maxPheromone;
+                        if (intensity > 0.05) {
+                            ctx.beginPath();
+                            ctx.moveTo(state.cities[i].x, state.cities[i].y);
+                            ctx.lineTo(state.cities[j].x, state.cities[j].y);
+                            ctx.strokeStyle = `rgba(245, 158, 11, ${Math.min(intensity * 0.8, 0.85)})`;
+                            ctx.lineWidth = Math.max(0.8, intensity * 4);
+                            ctx.stroke();
+                        }
+                    }
+                }
+            }
+
+            // 2. Draw Best Found Path
+            if (state.showBestPath && state.bestPath.length === N) {
+                ctx.beginPath();
+                for (let i = 0; i < N; i++) {
+                    const u = state.bestPath[i];
+                    const v = state.bestPath[(i + 1) % N];
+                    ctx.moveTo(state.cities[u].x, state.cities[u].y);
+                    ctx.lineTo(state.cities[v].x, state.cities[v].y);
+                }
+                ctx.strokeStyle = '#10b981'; // Emerald 500
+                ctx.lineWidth = 3;
+                ctx.shadowColor = '#10b981';
+                ctx.shadowBlur = 8;
+                ctx.stroke();
+                ctx.shadowBlur = 0; // Reset shadow
+            }
+
+            // 3. Draw Cities
+            state.cities.forEach((city, idx) => {
+                // Outer glow
+                ctx.beginPath();
+                ctx.arc(city.x, city.y, 8, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(244, 63, 94, 0.2)';
+                ctx.fill();
+
+                // Core Dot
+                ctx.beginPath();
+                ctx.arc(city.x, city.y, 5, 0, Math.PI * 2);
+                ctx.fillStyle = idx === 0 ? '#f43f5e' : '#38bdf8'; // Highlight city 0 in pink, others sky blue
+                ctx.fill();
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
+                // Label Index
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '10px JetBrains Mono, monospace';
+                ctx.fillText(idx.toString(), city.x + 8, city.y - 6);
+            });
+
+            // 4. Draw Animated Ants
+            if (state.showAnts && state.isRunning) {
+                updateAntPositions();
+                state.activeAnts.forEach(ant => {
+                    ctx.beginPath();
+                    ctx.arc(ant.x, ant.y, 3, 0, Math.PI * 2);
+                    ctx.fillStyle = '#fb923c'; // Orange-400
+                    ctx.fill();
+                    ctx.shadowColor = '#fb923c';
+                    ctx.shadowBlur = 4;
+                    ctx.stroke();
+                    ctx.shadowBlur = 0;
+                });
+            }
+        }
+
+        let lastStepTime = 0;
+
+        function animationLoop(timestamp) {
+            if (state.isRunning) {
+                // Run ACO step based on speed multiplier
+                const interval = Math.max(10, 200 - state.speed * 9.5);
+                if (timestamp - lastStepTime > interval) {
+                    runACOIteration();
+                    lastStepTime = timestamp;
+                }
+            }
+
+            drawSimulation();
+            requestAnimationFrame(animationLoop);
+        }
+
+        function updateMetricsUI() {
+            metricIteration.textContent = state.iteration;
+            metricBestDist.textContent = state.bestDistance === Infinity ? '0.00' : state.bestDistance.toFixed(2);
+            metricAntCount.textContent = state.numAnts;
+        }
+
+        // --- Interactive City Dragging / Adding on Canvas ---
+        function getCanvasMousePos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        function handlePointerDown(e) {
+            const pos = getCanvasMousePos(e);
+            // Check if clicking near an existing city
+            const hitIndex = state.cities.findIndex(c => {
+                const dx = c.x - pos.x;
+                const dy = c.y - pos.y;
+                return Math.sqrt(dx * dx + dy * dy) < 15;
+            });
+
+            if (hitIndex !== -1) {
+                state.draggedCityIndex = hitIndex;
+            } else {
+                // Add new city
+                state.cities.push({ x: pos.x, y: pos.y, id: state.cities.length });
+                state.numCities = state.cities.length;
+                sliderCities.value = state.numCities;
+                valCities.textContent = state.numCities;
+                initPheromonesAndDistances();
+            }
+        }
+
+        function handlePointerMove(e) {
+            if (state.draggedCityIndex !== -1) {
+                const pos = getCanvasMousePos(e);
+                state.cities[state.draggedCityIndex].x = pos.x;
+                state.cities[state.draggedCityIndex].y = pos.y;
+                initPheromonesAndDistances();
+            }
+        }
+
+        function handlePointerUp() {
+            state.draggedCityIndex = -1;
+        }
+
+        function setupEventListeners() {
+            // Window Resize
+            window.addEventListener('resize', resizeCanvas);
+
+            // Canvas Pointer Events
+            canvas.addEventListener('mousedown', handlePointerDown);
+            canvas.addEventListener('mousemove', handlePointerMove);
+            window.addEventListener('mouseup', handlePointerUp);
+
+            canvas.addEventListener('touchstart', (e) => { handlePointerDown(e); e.preventDefault(); }, { passive: false });
+            canvas.addEventListener('touchmove', (e) => { handlePointerMove(e); e.preventDefault(); }, { passive: false });
+            window.addEventListener('touchend', handlePointerUp);
+
+            // Controls
+            btnPlayPause.addEventListener('click', () => {
+                state.isRunning = !state.isRunning;
+                if (state.isRunning) {
+                    iconPlayPause.className = 'fa-solid fa-pause';
+                    labelPlayPause.textContent = 'Pause';
+                    statusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20';
+                    statusBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span> Simulating...';
+                } else {
+                    iconPlayPause.className = 'fa-solid fa-play';
+                    labelPlayPause.textContent = 'Resume';
+                    statusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-500/10 text-slate-400 border border-slate-500/20';
+                    statusBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-slate-400"></span> Paused';
+                }
+            });
+
+            btnStep.addEventListener('click', () => {
+                if (!state.isRunning) {
+                    runACOIteration();
+                }
+            });
+
+            btnReset.addEventListener('click', () => {
+                initPheromonesAndDistances();
+            });
+
+            btnRandomizeCities.addEventListener('click', () => {
+                generateRandomCities(state.numCities);
+            });
+
+            btnClearCities.addEventListener('click', () => {
+                state.cities = [];
+                state.numCities = 0;
+                sliderCities.value = 0;
+                valCities.textContent = 0;
+                initPheromonesAndDistances();
+            });
+
+            // Toggle Visual Layers
+            btnTogglePheromones.addEventListener('click', () => {
+                state.showPheromones = !state.showPheromones;
+                btnTogglePheromones.classList.toggle('opacity-40', !state.showPheromones);
+            });
+
+            btnToggleBestPath.addEventListener('click', () => {
+                state.showBestPath = !state.showBestPath;
+                btnToggleBestPath.classList.toggle('opacity-40', !state.showBestPath);
+            });
+
+            btnToggleAnts.addEventListener('click', () => {
+                state.showAnts = !state.showAnts;
+                btnToggleAnts.classList.toggle('opacity-40', !state.showAnts);
+            });
+
+            // Sliders Inputs
+            sliderCities.addEventListener('input', (e) => {
+                state.numCities = parseInt(e.target.value);
+                valCities.textContent = state.numCities;
+                generateRandomCities(state.numCities);
+            });
+
+            sliderAnts.addEventListener('input', (e) => {
+                state.numAnts = parseInt(e.target.value);
+                valAnts.textContent = state.numAnts;
+                updateMetricsUI();
+            });
+
+            sliderAlpha.addEventListener('input', (e) => {
+                state.alpha = parseFloat(e.target.value);
+                valAlpha.textContent = state.alpha.toFixed(1);
+            });
+
+            sliderBeta.addEventListener('input', (e) => {
+                state.beta = parseFloat(e.target.value);
+                valBeta.textContent = state.beta.toFixed(1);
+            });
+
+            sliderRho.addEventListener('input', (e) => {
+                state.rho = parseFloat(e.target.value);
+                valRho.textContent = state.rho.toFixed(2);
+            });
+
+            sliderSpeed.addEventListener('input', (e) => {
+                state.speed = parseInt(e.target.value);
+                valSpeed.textContent = state.speed + 'x';
+            });
+
+            // Modal Toggles
+            btnInfoModal.addEventListener('click', () => infoModal.classList.remove('hidden'));
+            btnCloseModal.addEventListener('click', () => infoModal.classList.add('hidden'));
+            btnCloseModal2.addEventListener('click', () => infoModal.classList.add('hidden'));
+        }
+
+        // --- Window Initialization ---
+        window.onload = function() {
+            initChart();
+            resizeCanvas();
+            generateRandomCities(state.numCities);
+            setupEventListeners();
+            requestAnimationFrame(animationLoop);
+        };
+    </script>
+</body>
+</html>
